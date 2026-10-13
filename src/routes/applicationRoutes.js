@@ -3,6 +3,7 @@ const JobApplication = require('../models/JobApplication');
 
 const router = express.Router();
 const statuses = ['Applied', 'Interview', 'Offer', 'Rejected'];
+const editableFields = ['companyName', 'jobTitle', 'applicationDate', 'status', 'notes'];
 
 router.get('/', async (request, response) => {
   const search = request.query.search || '';
@@ -41,6 +42,46 @@ router.get('/', async (request, response) => {
   ]);
 
   response.json({ data, total });
+});
+
+router.get('/:id', async (request, response) => {
+  if (!/^[a-f\d]{24}$/i.test(request.params.id)) {
+    return response.status(400).json({ message: 'Invalid application ID.' });
+  }
+
+  const application = await JobApplication.findById(request.params.id);
+  if (!application) {
+    return response.status(404).json({ message: 'Application not found.' });
+  }
+
+  response.json(application);
+});
+
+router.patch('/:id', async (request, response) => {
+  if (!/^[a-f\d]{24}$/i.test(request.params.id)) {
+    return response.status(400).json({ message: 'Invalid application ID.' });
+  }
+  if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
+    return response.status(400).json({ message: 'Request body must be a JSON object.' });
+  }
+
+  const updates = {};
+  for (const field of editableFields) {
+    if (request.body[field] !== undefined) updates[field] = request.body[field];
+  }
+  if (Object.keys(updates).length === 0) {
+    return response.status(400).json({ message: 'Provide at least one editable field.' });
+  }
+
+  const application = await JobApplication.findByIdAndUpdate(request.params.id, updates, {
+    new: true,
+    runValidators: true,
+  });
+  if (!application) {
+    return response.status(404).json({ message: 'Application not found.' });
+  }
+
+  response.json(application);
 });
 
 router.post('/', async (request, response) => {
