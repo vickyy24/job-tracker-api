@@ -44,6 +44,17 @@ router.get('/', async (request, response) => {
   response.json({ data, total });
 });
 
+router.get('/stats', async (request, response) => {
+  const [totalApplications, interviews, offers, rejections] = await Promise.all([
+    JobApplication.countDocuments(),
+    JobApplication.countDocuments({ status: 'Interview' }),
+    JobApplication.countDocuments({ status: 'Offer' }),
+    JobApplication.countDocuments({ status: 'Rejected' }),
+  ]);
+
+  response.json({ totalApplications, interviews, offers, rejections });
+});
+
 router.get('/:id', async (request, response) => {
   if (!/^[a-f\d]{24}$/i.test(request.params.id)) {
     return response.status(400).json({ message: 'Invalid application ID.' });
@@ -55,6 +66,19 @@ router.get('/:id', async (request, response) => {
   }
 
   response.json(application);
+});
+
+router.delete('/:id', async (request, response) => {
+  if (!/^[a-f\d]{24}$/i.test(request.params.id)) {
+    return response.status(400).json({ message: 'Invalid application ID.' });
+  }
+
+  const application = await JobApplication.findByIdAndDelete(request.params.id);
+  if (!application) {
+    return response.status(404).json({ message: 'Application not found.' });
+  }
+
+  response.json({ message: 'Application deleted successfully.' });
 });
 
 router.patch('/:id', async (request, response) => {
