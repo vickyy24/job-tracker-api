@@ -17,14 +17,15 @@ From this folder:
 npm install
 ```
 
-Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string. Keep this secret in the API folder; the frontend does not connect directly to MongoDB. The `.env` file is ignored by Git.
+Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string and replace `JWT_SECRET` with a cryptographically random value of at least 32 bytes. Keep both secrets in the API folder; the frontend does not connect directly to MongoDB or receive the JWT signing key. The `.env` file is ignored by Git.
 
-The API currently has no authentication. Anyone who can reach it can read all job application records and can modify or delete records through the frontend. Write requests are restricted to the configured frontend origin, but this is not a substitute for authentication. Do not use this deployment for private application records until authentication is restored.
+The API has initial JWT registration and session endpoints, but application data endpoints are still unauthenticated until per-user ownership is implemented. Anyone who can reach those data endpoints can read and modify records. Write requests are restricted to the configured frontend origin, but this is not a substitute for authentication. Do not use this deployment for private application records until T4 enforces ownership on every data route.
 
 ```env
 MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@YOUR-CLUSTER.mongodb.net/jobtracker?retryWrites=true&w=majority
 PORT=5000
 FRONTEND_ORIGIN=http://localhost:3000
+JWT_SECRET=generate-a-random-secret-at-least-32-bytes-long
 ```
 
 Start the server:
@@ -41,6 +42,7 @@ The included `render.yaml` defines a Node web service. Create a new Render Bluep
 
 - `MONGODB_URI`: MongoDB Atlas connection string. Restrict the Atlas network access list to Render's outbound IP ranges where your Atlas tier supports it.
 - `FRONTEND_ORIGIN`: the exact production Vercel origin, for example `https://job-tracker-app.vercel.app` (no trailing slash).
+- `JWT_SECRET`: a cryptographically random secret of at least 32 bytes. Keep it in Render's secret environment settings; never commit it or expose it to the frontend.
 - `NODE_ENV`: `production` (set by the Blueprint).
 
 Keep all values in Render's secret environment settings. Never commit `.env` or copy the MongoDB URI into Vercel. Render's free instance may sleep when idle; choose a paid instance if always-on response time is required.
@@ -63,6 +65,12 @@ All application endpoints are under `/api/applications`.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | API and database connection status |
+| `POST` | `/api/auth/register` | Create an individual account and start a session |
+| `POST` | `/api/auth/login` | Verify credentials and start a session |
+| `GET` | `/api/auth/session` | Read the current account session |
+| `GET` | `/api/auth/csrf` | Obtain the session-bound CSRF token |
+| `POST` | `/api/auth/refresh` | Rotate the refresh credential and renew the access JWT |
+| `POST` | `/api/auth/logout` | Revoke the current session |
 | `GET` | `/api/applications` | List records; supports `search`, `status`, `sortBy`, and `order` |
 | `GET` | `/api/applications/stats` | Totals and monthly application counts for the dashboard |
 | `GET` | `/api/applications/:id` | Read one application |
