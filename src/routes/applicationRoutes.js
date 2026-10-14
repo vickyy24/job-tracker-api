@@ -32,7 +32,6 @@ router.get('/', async (request, response) => {
     filter.$or = [
       { companyName: searchPattern },
       { jobTitle: searchPattern },
-      { notes: searchPattern },
     ];
   }
 
@@ -47,20 +46,22 @@ router.get('/', async (request, response) => {
 
 router.get('/stats', async (request, response) => {
   const now = new Date();
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const tomorrow = new Date(today);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const firstMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
-  const [totalApplications, interviews, offers, rejections, applicationsToday, monthlyApplications] = await Promise.all([
+  const firstMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const [totalApplications, interviews, offers, rejections, applicationsToday, monthlyApplications, monthlyStatusTotals] = await Promise.all([
     JobApplication.countDocuments(),
     JobApplication.countDocuments({ status: 'Interview' }),
     JobApplication.countDocuments({ status: 'Offer' }),
     JobApplication.countDocuments({ status: 'Rejected' }),
-    JobApplication.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
+    JobApplication.countDocuments({ createdAt: { $gte: todayUtc, $lt: new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000) } }),
     JobApplication.aggregate([
-      { $match: { createdAt: { $gte: firstMonth } } },
-      { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
+      { $match: { applicationDate: { $gte: firstMonth, $lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) } } },
+      { $group: { _id: { year: { $year: '$applicationDate' }, month: { $month: '$applicationDate' } }, count: { $sum: 1 } } },
       { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]),
+    JobApplication.aggregate([
+      { $match: { applicationDate: { $gte: firstMonth, $lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) } } },
+      { $group: { _id: { year: { $year: '$applicationDate' }, month: { $month: '$applicationDate' }, status: '$status' }, count: { $sum: 1 } } },
     ]),
   ]);
 
@@ -69,7 +70,15 @@ router.get('/stats', async (request, response) => {
     month: item._id.month,
     count: item.count,
   }));
-  response.json({ totalApplications, interviews, offers, rejections, applicationsToday, applicationsByMonth });
+  const applicationsByStatusByRange = { 6: Object.fromEntries(statuses.map((status) => [status, 0])), 12: Object.fromEntries(statuses.map((status) => [status, 0])) };
+  for (const { _id, count } of monthlyStatusTotals) {
+    const monthStart = new Date(Date.UTC(_id.year, _id.month - 1, 1));
+    for (const months of [6, 12]) {
+      const rangeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months + 1, 1));
+      if (monthStart >= rangeStart) applicationsByStatusByRange[months][_id.status] += count;
+    }
+  }
+  response.json({ totalApplications, interviews, offers, rejections, applicationsToday, applicationsByMonth, applicationsByStatusByRange });
 });
 
 router.get('/:id', async (request, response) => {
