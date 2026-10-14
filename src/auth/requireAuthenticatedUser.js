@@ -1,4 +1,5 @@
 const AuthSession = require('../models/AuthSession');
+const User = require('../models/User');
 const { validCsrfToken, verifyAccessToken } = require('./sessionTokens');
 
 async function requireAuthenticatedUser(request, response, next) {
@@ -15,6 +16,9 @@ async function requireAuthenticatedUser(request, response, next) {
   }).select('_id userId').lean();
 
   if (!session) return response.status(401).json({ message: 'Authentication required.' });
+
+  const verifiedUser = await User.exists({ _id: session.userId, emailVerifiedAt: { $ne: null } });
+  if (!verifiedUser) return response.status(401).json({ message: 'Authentication required.' });
 
   request.user = { id: String(session.userId), sessionId: String(session._id) };
   return next();

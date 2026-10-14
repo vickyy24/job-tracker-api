@@ -3,7 +3,7 @@ services:
     name: job-tracker-api
     runtime: node
     plan: free
-    buildCommand: npm ci
+    buildCommand: npm install --omit=dev
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -14,4 +14,8 @@ services:
       - key: FRONTEND_ORIGIN
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
         sync: false

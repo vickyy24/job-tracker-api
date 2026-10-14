@@ -17,15 +17,17 @@ From this folder:
 npm install
 ```
 
-Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string and replace `JWT_SECRET` with a cryptographically random value of at least 32 bytes. Keep both secrets in the API folder; the frontend does not connect directly to MongoDB or receive the JWT signing key. The `.env` file is ignored by Git.
+Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string, replace `JWT_SECRET` with a cryptographically random value of at least 32 bytes, and set `GMAIL_USER` plus `GMAIL_APP_PASSWORD`. The API sends email through Gmail SMTP on port 587. Keep all credentials in the API environment; the frontend does not connect directly to MongoDB or receive mail credentials or the JWT signing key. The `.env` file is ignored by Git.
 
-The API has initial JWT registration and session endpoints, but application data endpoints are still unauthenticated until per-user ownership is implemented. Anyone who can reach those data endpoints can read and modify records. Write requests are restricted to the configured frontend origin, but this is not a substitute for authentication. Do not use this deployment for private application records until T4 enforces ownership on every data route.
+This source revision requires a verified JWT session for all application data endpoints, scopes application operations to the authenticated account, and requires a session-bound CSRF header for writes. A deployed older revision may still expose unowned records; verify the deployed API version before treating production data as private. Existing records without an owner stay hidden from accounts and must be deleted manually before enabling private accounts; there is no automatic migration or first-account claim.
 
 ```env
 MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@YOUR-CLUSTER.mongodb.net/jobtracker?retryWrites=true&w=majority
 PORT=5000
 FRONTEND_ORIGIN=http://localhost:3000
 JWT_SECRET=generate-a-random-secret-at-least-32-bytes-long
+GMAIL_USER=your.full.address@gmail.com
+GMAIL_APP_PASSWORD=your-16-character-app-password
 ```
 
 Start the server:
@@ -43,6 +45,8 @@ The included `render.yaml` defines a Node web service. Create a new Render Bluep
 - `MONGODB_URI`: MongoDB Atlas connection string. Restrict the Atlas network access list to Render's outbound IP ranges where your Atlas tier supports it.
 - `FRONTEND_ORIGIN`: the exact production Vercel origin, for example `https://job-tracker-app.vercel.app` (no trailing slash).
 - `JWT_SECRET`: a cryptographically random secret of at least 32 bytes. Keep it in Render's secret environment settings; never commit it or expose it to the frontend.
+- `GMAIL_USER`: the full Gmail address that sends verification messages.
+- `GMAIL_APP_PASSWORD`: the Google App Password for that account. Keep it in Render's secret environment settings; do not use your normal Google password.
 - `NODE_ENV`: `production` (set by the Blueprint).
 
 Keep all values in Render's secret environment settings. Never commit `.env` or copy the MongoDB URI into Vercel. Render's free instance may sleep when idle; choose a paid instance if always-on response time is required.
@@ -51,6 +55,7 @@ Keep all values in Render's secret environment settings. Never commit `.env` or 
 
 Each record stores:
 
+- `userId`: required owner reference, assigned only by the API from the authenticated session
 - `companyName` and `jobTitle` (required)
 - `salary` and `location` (optional strings)
 - `applicationDate` (required date)
@@ -65,8 +70,10 @@ All application endpoints are under `/api/applications`.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | API and database connection status |
-| `POST` | `/api/auth/register` | Create an individual account and start a session |
-| `POST` | `/api/auth/login` | Verify credentials and start a session |
+| `POST` | `/api/auth/register` | Create a pending individual account and email a verification code; accepts `firstName`, `lastName`, `email`, and `password` |
+| `POST` | `/api/auth/verify-email` | Verify an email with its six-digit, ten-minute code |
+| `POST` | `/api/auth/resend-verification` | Send a replacement verification code |
+| `POST` | `/api/auth/login` | Verify credentials and start a session for a verified account |
 | `GET` | `/api/auth/session` | Read the current account session |
 | `GET` | `/api/auth/csrf` | Obtain the session-bound CSRF token |
 | `POST` | `/api/auth/refresh` | Rotate the refresh credential and renew the access JWT |
@@ -78,21 +85,11 @@ All application endpoints are under `/api/applications`.
 | `PATCH` | `/api/applications/:id` | Update supplied application fields |
 | `DELETE` | `/api/applications/:id` | Delete an application |
 
+Registration does not sign the account in. The user must enter the emailed code and then sign in. Verification codes are hashed in MongoDB, expire after ten minutes, allow at most five guesses, and can be resent once per minute. Auth endpoints also apply per-IP request limits stored in MongoDB. Configure Gmail credentials before accepting registrations; they stay on the API server.
+
 Search matches company names and job titles without case sensitivity. List sorting accepts `applicationDate`, `createdAt`, `companyName`, or `jobTitle`, with `asc` or `desc` order. The default is application date descending. On the frontend dashboard, the status breakdown compares all applications with the active pipeline (excluding rejected applications); the monthly activity chart offers the last 6 or 12 calendar months.
 
 Successful list responses have the shape `{ "data": [], "total": 0 }`. Invalid input returns HTTP 400, missing records return HTTP 404, and unexpected errors return a generic HTTP 500 message.
-
-## Optional chart demo data
-
-To populate charts with seven fictional sample applications dated May through September 2026, run:
-
-```sh
-npm run seed:demo
-```
-
-The script is safe to run more than once: it skips sample company names already in the database. It dates each sample's `createdAt` with its application date, so demo records do not increase today's daily-goal count. The company names start with `Demo ·` and notes identify each entry as sample data. To remove them, delete records with company names starting with `Demo ·` in the app or your MongoDB client.
-
-The sample records contain company, role, salary, location, application date, status, and a note. They create monthly counts of 1 in May, 2 in June, 1 in July, 2 in August, and 1 in September 2026, with Applied, Interview, Offer, and Rejected statuses represented. This produces visible month-to-month changes and multiple status totals in the dashboard. The records are fictional and do not represent current job listings.
 
 ## Tests
 
