@@ -331,12 +331,25 @@ router.post('/login', async (request, response) => {
   }
 
   const user = await User.findOne({ email: credentials.email }).select('+passwordHash');
-  if (!user || !(await verifyPassword(credentials.password, user.passwordHash))) {
+  if (!user) {
+    console.warn('[auth:login-failed]', { reason: 'account-not-found' });
     return response.status(401).json({ message: 'Email or password is incorrect.' });
   }
-  if (!user.emailVerifiedAt) return response.status(403).json({ message: 'Verify your email before signing in.' });
+  if (!(await verifyPassword(credentials.password, user.passwordHash))) {
+    console.warn('[auth:login-failed]', { reason: 'password-mismatch' });
+    return response.status(401).json({ message: 'Email or password is incorrect.' });
+  }
+  if (!user.emailVerifiedAt) {
+    console.warn('[auth:login-failed]', { reason: 'email-not-verified' });
+    return response.status(403).json({ message: 'Verify your email before signing in.' });
+  }
 
-  return response.json(await createSession(user, response, request.body?.rememberMe !== false));
+  try {
+    return response.json(await createSession(user, response, request.body?.rememberMe !== false));
+  } catch (error) {
+    error.operation = 'auth.login.create-session';
+    throw error;
+  }
 });
 
 router.get('/csrf', async (request, response) => {
