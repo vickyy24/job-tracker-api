@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "dev": "node --env-file-if-exists=.env --watch index.js",
+    "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo-applications.js",
     "test": "node --test --test-isolation=none"
   },
   "dependencies": {

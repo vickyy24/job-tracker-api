@@ -1,44 +1,83 @@
 # Job Tracker API
 
-## Current structure
+Express and MongoDB API for the Job Tracker frontend. It stores job applications and provides application lists, updates, and dashboard statistics.
 
-- `index.js` starts the Express server.
-- `src/app.js` configures CORS, JSON parsing, the health endpoint, JSON 404 handling, and centralized errors. It exports an app factory for focused HTTP tests.
-- `src/config/database.js` reads `MONGODB_URI` and connects to MongoDB during startup.
-- `src/models/JobApplication.js` defines the application fields, status values, and timestamps.
-- `test/app.test.js` covers health, configured CORS, JSON parsing, unknown routes, and production error responses using Node's built-in test runner.
-- The project uses Node.js CommonJS and keeps its existing package setup.
+The companion React application is maintained in the [job-tracker-app repository](https://github.com/vickyy24/job-tracker-app).
 
-## Configure MongoDB Atlas and Compass
+## Requirements
 
-```powershell
+- Node.js (the start scripts use Node's `--env-file-if-exists` option).
+- MongoDB Atlas or a reachable MongoDB server.
+
+## Configure and run
+
+From this folder:
+
+```sh
 npm install
-Copy-Item .env.example .env
 ```
 
-Set `MONGODB_URI` in `job-tracker-api/.env` to the connection string from your Atlas cluster. Use the database name `jobtracker` in the URI, and keep the username/password only in this backend `.env` file. `.env` is ignored by Git. Never put this URI in the React app or commit it.
+Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string. Keep this secret in the API folder; the frontend does not connect directly to MongoDB. The `.env` file is ignored by Git.
 
-In MongoDB Compass, choose **Add new connection**, paste the same Atlas connection string, then connect. The `jobtracker` database and collections appear after the backend successfully saves the first application.
+```env
+MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@YOUR-CLUSTER.mongodb.net/jobtracker?retryWrites=true&w=majority
+PORT=5000
+FRONTEND_ORIGIN=http://localhost:3000
+```
 
-Start the API from this folder with `npm start`. It connects to MongoDB before listening on port `5000`; missing or unreachable Atlas configuration produces an actionable startup error. The API does not fall back to a local MongoDB server. Set `FRONTEND_ORIGIN` when the frontend runs at a different origin.
+Start the server:
 
-Start the React app separately from `job-tracker-app` with `npm start`. It calls the Express API and never connects to MongoDB directly.
+```sh
+npm start
+```
 
-The API listens on port `5000` by default; set `PORT` to override it. CORS allows `http://localhost:3000` by default. Application routes are available under `/api/applications`.
+The API connects to MongoDB before listening on port `5000`. `npm run dev` runs it in watch mode. The health endpoint is [http://localhost:5000/api/health](http://localhost:5000/api/health).
 
-Run the middleware tests with:
+## Application data
+
+Each record stores:
+
+- `companyName` and `jobTitle` (required)
+- `salary` and `location` (optional strings)
+- `applicationDate` (required date)
+- `status`: `Applied`, `Interview`, `Offer`, or `Rejected`
+- `notes` (optional; useful for job description and application details)
+- `createdAt` and `updatedAt` (managed timestamps)
+
+## API endpoints
+
+All application endpoints are under `/api/applications`.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | API and database connection status |
+| `GET` | `/api/applications` | List records; supports `search`, `status`, `sortBy`, and `order` |
+| `GET` | `/api/applications/stats` | Totals and monthly application counts for the dashboard |
+| `GET` | `/api/applications/:id` | Read one application |
+| `POST` | `/api/applications` | Create an application |
+| `PATCH` | `/api/applications/:id` | Update supplied application fields |
+| `DELETE` | `/api/applications/:id` | Delete an application |
+
+Search matches company names and job titles without case sensitivity. List sorting accepts `applicationDate`, `createdAt`, `companyName`, or `jobTitle`, with `asc` or `desc` order. The default is application date descending. The frontend uses application dates for both dashboard views: the status breakdown offers all time or this year, and activity offers the last 6 or 12 calendar months.
+
+Successful list responses have the shape `{ "data": [], "total": 0 }`. Invalid input returns HTTP 400, missing records return HTTP 404, and unexpected errors return a generic HTTP 500 message.
+
+## Optional chart demo data
+
+To populate charts with five fictional sample applications dated May through September 2026, run:
+
+```sh
+npm run seed:demo
+```
+
+The script is safe to run more than once: it skips sample company names already in the database. It dates each sample's `createdAt` with its application date, so demo records do not increase today's daily-goal count. The company names start with `Demo ·` and notes identify each entry as sample data. To remove them, delete records with company names starting with `Demo ·` in the app or your MongoDB client.
+
+The sample records contain company, role, salary, location, application date, status, and a note. Their months and statuses are: May — Applied; June — Interview; July — Rejected; August — Offer; September — Interview. This produces visible month-to-month activity and multiple status totals in the dashboard. The records are fictional and do not represent current job listings.
+
+## Tests
 
 ```sh
 npm test
 ```
 
-## Current API endpoint
-
-- `GET /api/health` → `{ "status": "ok" }`
-- `GET /api/applications` lists records as `{ "data": [], "total": 0 }`; supports `search`, `status`, `sortBy`, and `order` query parameters.
-- `GET /api/applications/stats` returns totals for applications, interviews, offers, and rejections.
-- `GET /api/applications/:id` reads one application; `PATCH /api/applications/:id` updates supplied application fields.
-- `DELETE /api/applications/:id` deletes one application.
-- `POST /api/applications` creates a record with `companyName`, `jobTitle`, `applicationDate`, `status`, and optional `notes`.
-
-Search checks company and job title without case sensitivity. Sorting supports `applicationDate` or `companyName`, ascending or descending; the default is application date descending. Invalid query values return HTTP 400. The create endpoint returns the saved application with HTTP 201. Invalid model fields return HTTP 400 with a `message`; unexpected errors return `{ "message": "Internal server error" }`. Unknown paths return `{ "message": "Route not found" }`.
+The `npm test` command uses Node's built-in test runner. Add test files under `test/` as API coverage is introduced.
