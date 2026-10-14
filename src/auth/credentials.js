@@ -1,5 +1,6 @@
 const { promisify } = require('node:util');
 const { randomBytes, scrypt: scryptCallback, timingSafeEqual } = require('node:crypto');
+const bcrypt = require('bcryptjs');
 
 const scrypt = promisify(scryptCallback);
 const SCRYPT_COST = 32768;
@@ -60,6 +61,12 @@ async function verifyPassword(password, encodedHash) {
   // account-creation policy (older accounts may use a shorter password).
   if (typeof password !== 'string' || password.length === 0 || password.length > 128
     || typeof encodedHash !== 'string') return false;
+
+  // Accounts created before the scrypt migration use bcrypt hashes.
+  // Keep them usable; all newly created and reset passwords use scrypt.
+  if (/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(encodedHash)) {
+    return bcrypt.compare(password, encodedHash);
+  }
 
   const parts = encodedHash.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
