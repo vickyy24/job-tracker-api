@@ -153,7 +153,9 @@ router.post('/forgot-password', async (request, response) => {
   const email = normalizeEmail(request.body?.email);
   if (!isValidEmail(email)) return response.status(202).json(genericPasswordResetResponse);
 
-  const user = await User.findOne({ email, emailVerifiedAt: { $ne: null } }).select('+passwordResetSentAt');
+  // The reset code is itself an email ownership check. Allow pending and
+  // legacy accounts to recover access; successful reset also verifies them.
+  const user = await User.findOne({ email }).select('+passwordResetSentAt');
   if (!user) return response.status(202).json(genericPasswordResetResponse);
   if (user.passwordResetSentAt && Date.now() - user.passwordResetSentAt.getTime() < OTP_RESEND_COOLDOWN_MS) {
     return response.status(202).json(genericPasswordResetResponse);
@@ -162,7 +164,7 @@ router.post('/forgot-password', async (request, response) => {
   const code = String(randomInt(100000, 1000000));
   await sendPasswordResetCode(user.email, code);
   const now = new Date();
-  await User.updateOne({ _id: user._id, emailVerifiedAt: { $ne: null } }, {
+  await User.updateOne({ _id: user._id }, {
     $set: {
       passwordResetCodeHash: passwordResetOtpHash(user.email, code),
       passwordResetCodeExpiresAt: new Date(now.getTime() + OTP_TTL_MS),
@@ -183,7 +185,7 @@ router.post('/reset-password', async (request, response) => {
     return response.status(400).json({ message: passwordError || 'Enter the email address and six-digit code.' });
   }
 
-  const user = await User.findOne({ email, emailVerifiedAt: { $ne: null } })
+  const user = await User.findOne({ email })
     .select('+passwordResetCodeHash +passwordResetCodeExpiresAt +passwordResetAttempts');
   const invalidCodeMessage = 'That code is invalid or expired. Request a new code and try again.';
   if (!user || !user.passwordResetCodeHash || !user.passwordResetCodeExpiresAt || user.passwordResetCodeExpiresAt <= new Date() || user.passwordResetAttempts >= OTP_MAX_ATTEMPTS) {
@@ -205,8 +207,11 @@ router.post('/reset-password', async (request, response) => {
     passwordResetCodeExpiresAt: { $gt: new Date() },
     passwordResetAttempts: { $lt: OTP_MAX_ATTEMPTS },
   }, {
-    $set: { passwordHash },
-    $unset: { passwordResetCodeHash: '', passwordResetCodeExpiresAt: '', passwordResetAttempts: '', passwordResetSentAt: '' },
+    $set: { passwordHash, emailVerifiedAt: user.emailVerifiedAt || new Date() },
+    $unset: {
+      passwordResetCodeHash: '', passwordResetCodeExpiresAt: '', passwordResetAttempts: '', passwordResetSentAt: '',
+      verificationCodeHash: '', verificationCodeExpiresAt: '', verificationAttempts: '', verificationSentAt: '',
+    },
   });
   if (!updated.modifiedCount) return response.status(400).json({ message: invalidCodeMessage });
 
