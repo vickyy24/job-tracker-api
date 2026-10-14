@@ -51,7 +51,22 @@ function createApp({ apiRouter = express.Router() } = {}) {
     const status = error.name === 'ValidationError' || error.name === 'CastError'
       ? 400
       : error.status || 500;
-    const message = status >= 500 ? 'Internal server error' : error.message;
+    if (status >= 500) {
+      // Keep credentials, request bodies, emails, and provider error text out
+      // of logs. The operation and protocol codes are enough to locate the
+      // failing step without leaking account or deployment details.
+      console.error('[api:error]', {
+        method: request.method,
+        path: request.path,
+        operation: error.operation || null,
+        name: error.name || 'Error',
+        code: error.code || null,
+        codeName: error.codeName || null,
+        command: error.command || null,
+        responseCode: error.responseCode || null,
+      });
+    }
+    const message = status >= 500 ? (error.publicMessage || 'Internal server error') : error.message;
     response.status(status).json({ message });
   });
 

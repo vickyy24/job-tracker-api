@@ -5,7 +5,7 @@ const AuthSession = require('../models/AuthSession');
 const User = require('../models/User');
 const { hashPassword, isValidEmail, normalizeEmail, validatePassword, verifyPassword } = require('../auth/credentials');
 const { requireTrustedOrigin } = require('../auth');
-const { sendVerificationCode } = require('../services/emailService');
+const { sendPasswordResetCode, sendVerificationCode } = require('../services/emailService');
 const {
   accessCookieName,
   createCsrfToken,
@@ -114,7 +114,7 @@ async function rateLimit(request, response, scope, limit, windowMs) {
       count: { $cond: [{ $gt: ['$resetAt', now] }, { $add: [{ $ifNull: ['$count', 0] }, 1] }, 1] },
       resetAt: { $cond: [{ $gt: ['$resetAt', now] }, '$resetAt', resetAt] },
     },
-  }], { upsert: true, new: true }).lean();
+  }], { upsert: true, new: true, updatePipeline: true }).lean();
 
   if (counter.count <= limit) return true;
   response.set('Retry-After', String(Math.max(1, Math.ceil((new Date(counter.resetAt).getTime() - now.getTime()) / 1000))));
@@ -136,10 +136,93 @@ async function issueVerificationCode(user) {
   });
 }
 
+function passwordResetOtpHash(email, code) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || Buffer.byteLength(secret) < 32) {
+    const error = new Error('Authentication is not configured.');
+    error.status = 503;
+    throw error;
+  }
+  return createHmac('sha256', secret).update(`jobtrack-password-reset-v1:${email}:${code}`).digest('base64url');
+}
+
+const genericPasswordResetResponse = { message: 'If an account exists for that email, a password reset code has been sent.' };
+
+router.post('/forgot-password', async (request, response) => {
+  if (!(await rateLimit(request, response, 'forgot-password', 5, 60 * 60 * 1000))) return;
+  const email = normalizeEmail(request.body?.email);
+  if (!isValidEmail(email)) return response.status(202).json(genericPasswordResetResponse);
+
+  const user = await User.findOne({ email, emailVerifiedAt: { $ne: null } }).select('+passwordResetSentAt');
+  if (!user) return response.status(202).json(genericPasswordResetResponse);
+  if (user.passwordResetSentAt && Date.now() - user.passwordResetSentAt.getTime() < OTP_RESEND_COOLDOWN_MS) {
+    return response.status(202).json(genericPasswordResetResponse);
+  }
+
+  const code = String(randomInt(100000, 1000000));
+  await sendPasswordResetCode(user.email, code);
+  const now = new Date();
+  await User.updateOne({ _id: user._id, emailVerifiedAt: { $ne: null } }, {
+    $set: {
+      passwordResetCodeHash: passwordResetOtpHash(user.email, code),
+      passwordResetCodeExpiresAt: new Date(now.getTime() + OTP_TTL_MS),
+      passwordResetAttempts: 0,
+      passwordResetSentAt: now,
+    },
+  });
+  return response.status(202).json(genericPasswordResetResponse);
+});
+
+router.post('/reset-password', async (request, response) => {
+  if (!(await rateLimit(request, response, 'reset-password', 10, 15 * 60 * 1000))) return;
+  const email = normalizeEmail(request.body?.email);
+  const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
+  const password = request.body?.password;
+  const passwordError = validatePassword(password);
+  if (!isValidEmail(email) || !/^\d{6}$/.test(code) || passwordError) {
+    return response.status(400).json({ message: passwordError || 'Enter the email address and six-digit code.' });
+  }
+
+  const user = await User.findOne({ email, emailVerifiedAt: { $ne: null } })
+    .select('+passwordResetCodeHash +passwordResetCodeExpiresAt +passwordResetAttempts');
+  const invalidCodeMessage = 'That code is invalid or expired. Request a new code and try again.';
+  if (!user || !user.passwordResetCodeHash || !user.passwordResetCodeExpiresAt || user.passwordResetCodeExpiresAt <= new Date() || user.passwordResetAttempts >= OTP_MAX_ATTEMPTS) {
+    return response.status(400).json({ message: invalidCodeMessage });
+  }
+
+  const expectedHash = Buffer.from(user.passwordResetCodeHash, 'base64url');
+  const submittedHash = Buffer.from(passwordResetOtpHash(email, code), 'base64url');
+  const matches = expectedHash.length === submittedHash.length && timingSafeEqual(expectedHash, submittedHash);
+  if (!matches) {
+    await User.updateOne({ _id: user._id, passwordResetCodeHash: user.passwordResetCodeHash, passwordResetAttempts: { $lt: OTP_MAX_ATTEMPTS } }, { $inc: { passwordResetAttempts: 1 } });
+    return response.status(400).json({ message: invalidCodeMessage });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const updated = await User.updateOne({
+    _id: user._id,
+    passwordResetCodeHash: user.passwordResetCodeHash,
+    passwordResetCodeExpiresAt: { $gt: new Date() },
+    passwordResetAttempts: { $lt: OTP_MAX_ATTEMPTS },
+  }, {
+    $set: { passwordHash },
+    $unset: { passwordResetCodeHash: '', passwordResetCodeExpiresAt: '', passwordResetAttempts: '', passwordResetSentAt: '' },
+  });
+  if (!updated.modifiedCount) return response.status(400).json({ message: invalidCodeMessage });
+
+  await AuthSession.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+  return response.json({ message: 'Password updated. Sign in with your new password.' });
+});
+
 const genericVerificationResponse = { message: 'If this email can be registered, a verification code has been sent.' };
 
 router.post('/register', async (request, response) => {
-  if (!(await rateLimit(request, response, 'register', 5, 60 * 60 * 1000))) return;
+  try {
+    if (!(await rateLimit(request, response, 'register', 5, 60 * 60 * 1000))) return;
+  } catch (error) {
+    error.operation = 'auth.register.rate-limit';
+    throw error;
+  }
   const credentials = credentialsFrom(request);
   const firstName = accountName(request.body?.firstName);
   const lastName = accountName(request.body?.lastName);
@@ -157,13 +240,31 @@ router.post('/register', async (request, response) => {
     if (error.code === 11000) {
       user = await User.findOne({ email: credentials.email }).select('+emailVerifiedAt +verificationSentAt');
       if (!user || user.emailVerifiedAt) return response.status(202).json(genericVerificationResponse);
+      // Older pending registrations may have been created before names were
+      // required. Refresh their submitted names without changing the password.
+      await User.updateOne({ _id: user._id, emailVerifiedAt: null }, { $set: { firstName, lastName } });
+      user.firstName = firstName;
+      user.lastName = lastName;
     }
-    else throw error;
+    else {
+      error.operation = 'auth.register.create-user';
+      throw error;
+    }
   }
 
   const recentlySent = user.verificationSentAt && Date.now() - user.verificationSentAt.getTime() < OTP_RESEND_COOLDOWN_MS;
   if (recentlySent) return response.status(202).json(genericVerificationResponse);
-  await issueVerificationCode(user);
+  try {
+    await issueVerificationCode(user);
+  } catch (error) {
+    error.operation = 'auth.register.send-verification';
+    // The account is already safely stored as pending verification. Give a
+    // recoverable response without exposing Gmail/provider details; a retry
+    // will send a fresh code for this unverified account.
+    error.status = 503;
+    error.publicMessage = 'We could not send the verification email. Check the API email settings and try again.';
+    throw error;
+  }
   return response.status(202).json(genericVerificationResponse);
 });
 
