@@ -17,9 +17,5 @@ services:
         sync: false
       - key: GMAIL_USER
         sync: false
-      - key: GMAIL_OAUTH_CLIENT_ID
-        sync: false
-      - key: GMAIL_OAUTH_CLIENT_SECRET
-        sync: false
-      - key: GMAIL_OAUTH_REFRESH_TOKEN
+      - key: GMAIL_APP_PASSWORD
         sync: false
