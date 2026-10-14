@@ -58,7 +58,7 @@ All application endpoints are under `/api/applications`.
 | `PATCH` | `/api/applications/:id` | Update supplied application fields |
 | `DELETE` | `/api/applications/:id` | Delete an application |
 
-Search matches company names and job titles without case sensitivity. List sorting accepts `applicationDate`, `createdAt`, `companyName`, or `jobTitle`, with `asc` or `desc` order. The default is application date descending. The frontend uses application dates for both dashboard views: the status breakdown offers all time or this year, and activity offers the last 6 or 12 calendar months.
+Search matches company names and job titles without case sensitivity. List sorting accepts `applicationDate`, `createdAt`, `companyName`, or `jobTitle`, with `asc` or `desc` order. The default is application date descending. On the frontend dashboard, the status breakdown compares all applications with the active pipeline (excluding rejected applications); the monthly activity chart offers the last 6 or 12 calendar months.
 
 Successful list responses have the shape `{ "data": [], "total": 0 }`. Invalid input returns HTTP 400, missing records return HTTP 404, and unexpected errors return a generic HTTP 500 message.
 
