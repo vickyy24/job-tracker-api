@@ -19,6 +19,8 @@ npm install
 
 Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string. Keep this secret in the API folder; the frontend does not connect directly to MongoDB. The `.env` file is ignored by Git.
 
+Set `ADMIN_PASSWORD` to a randomly generated password of at least 24 characters. The API requires this value at startup. The frontend uses it only for login; it is never embedded in the JavaScript bundle. Authenticated sessions use a random HTTP-only, secure cookie, expire after 12 hours, and are revocable at logout. Login attempts are rate-limited and write requests are restricted to the configured frontend origin.
+
 ```env
 MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@YOUR-CLUSTER.mongodb.net/jobtracker?retryWrites=true&w=majority
 PORT=5000
@@ -32,6 +34,17 @@ npm start
 ```
 
 The API connects to MongoDB before listening on port `5000`. `npm run dev` runs it in watch mode. The health endpoint is [http://localhost:5000/api/health](http://localhost:5000/api/health).
+
+## Deploy to Render
+
+The included `render.yaml` defines a Node web service. Create a new Render Blueprint from this repository and set its prompted environment variables in Render's dashboard:
+
+- `MONGODB_URI`: MongoDB Atlas connection string. Restrict the Atlas network access list to Render's outbound IP ranges where your Atlas tier supports it.
+- `ADMIN_PASSWORD`: randomly generated secret with at least 24 characters.
+- `FRONTEND_ORIGIN`: the exact production Vercel origin, for example `https://job-tracker-app.vercel.app` (no trailing slash).
+- `NODE_ENV`: `production` (set by the Blueprint).
+
+Keep all values in Render's secret environment settings. Never commit `.env` or copy the MongoDB URI into Vercel. Render's free instance may sleep when idle; choose a paid instance if always-on response time is required.
 
 ## Application data
 

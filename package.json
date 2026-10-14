@@ -4,6 +4,9 @@
   "description": "job tracker api",
   "license": "ISC",
   "author": "",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "type": "commonjs",
   "main": "index.js",
   "scripts": {

@@ -2,13 +2,28 @@ const cors = require('cors');
 const express = require('express');
 const mongoose = require('mongoose');
 const applicationRoutes = require('./routes/applicationRoutes');
+const { authRouter, requireAuth, requireTrustedOrigin } = require('./auth');
 
 function createApp({ apiRouter = express.Router() } = {}) {
   const app = express();
-  const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+  const frontendOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
+    .split(',').map((origin) => origin.trim()).filter(Boolean);
 
-  app.use(cors({ origin: frontendOrigin }));
-  app.use(express.json());
+  app.set('trust proxy', 1);
+  app.use(cors({ origin: frontendOrigins, credentials: true }));
+  app.use(express.json({ limit: '32kb' }));
+  app.use((request, response, next) => {
+    response.set({
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Cache-Control': 'no-store',
+    });
+    if (process.env.NODE_ENV === 'production') {
+      response.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
 
   app.get('/api/health', (request, response) => {
     const connected = mongoose.connection.readyState === 1;
@@ -18,7 +33,8 @@ function createApp({ apiRouter = express.Router() } = {}) {
     });
   });
 
-  app.use('/api/applications', applicationRoutes);
+  app.use('/api/auth', authRouter);
+  app.use('/api/applications', requireAuth, requireTrustedOrigin, applicationRoutes);
   app.use('/api', apiRouter);
 
   app.use((request, response) => {
