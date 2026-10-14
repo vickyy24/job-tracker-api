@@ -13,6 +13,10 @@ const authSessionSchema = new mongoose.Schema({
     unique: true,
     select: false,
   },
+  rememberMe: {
+    type: Boolean,
+    default: true,
+  },
   expiresAt: {
     type: Date,
     required: true,

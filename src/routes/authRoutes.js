@@ -32,7 +32,7 @@ function cookieOptions(maxAge) {
     secure: isProduction(),
     sameSite: 'lax',
     path: '/',
-    maxAge,
+    ...(Number.isFinite(maxAge) ? { maxAge } : {}),
   };
 }
 
@@ -57,17 +57,18 @@ async function activeSessionFromRefreshCookie(request) {
   }).select('+refreshTokenHash');
 }
 
-async function createSession(user, response) {
+async function createSession(user, response, rememberMe = true) {
   const refreshToken = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
   const session = await AuthSession.create({
     userId: user._id,
     refreshTokenHash: tokenHash(refreshToken),
     expiresAt,
+    rememberMe,
   });
 
-  response.cookie(accessCookieName(), signAccessToken(user._id, session._id, ACCESS_TTL_SECONDS), cookieOptions(ACCESS_TTL_SECONDS * 1000));
-  response.cookie(refreshCookieName(), refreshToken, cookieOptions(REFRESH_TTL_MS));
+  response.cookie(accessCookieName(), signAccessToken(user._id, session._id, ACCESS_TTL_SECONDS), cookieOptions(rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
+  response.cookie(refreshCookieName(), refreshToken, cookieOptions(rememberMe ? REFRESH_TTL_MS : undefined));
   return {
     user: { id: String(user._id), firstName: user.firstName, lastName: user.lastName, email: user.email },
     csrfToken: createCsrfToken(session._id),
@@ -229,7 +230,7 @@ router.post('/login', async (request, response) => {
   }
   if (!user.emailVerifiedAt) return response.status(403).json({ message: 'Verify your email before signing in.' });
 
-  return response.json(await createSession(user, response));
+  return response.json(await createSession(user, response, request.body?.rememberMe !== false));
 });
 
 router.get('/csrf', async (request, response) => {
@@ -290,8 +291,8 @@ router.post('/refresh', async (request, response) => {
     return response.status(401).json({ message: 'Authentication required.' });
   }
 
-  response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id, ACCESS_TTL_SECONDS), cookieOptions(ACCESS_TTL_SECONDS * 1000));
-  response.cookie(refreshCookieName(), refreshToken, cookieOptions(REFRESH_TTL_MS));
+  response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id, ACCESS_TTL_SECONDS), cookieOptions(rotatedSession.rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
+  response.cookie(refreshCookieName(), refreshToken, cookieOptions(rotatedSession.rememberMe ? REFRESH_TTL_MS : undefined));
   return response.json({ user: { id: String(user._id), firstName: user.firstName, lastName: user.lastName, email: user.email }, csrfToken: createCsrfToken(rotatedSession._id) });
 });
 
