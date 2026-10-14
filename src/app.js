@@ -2,7 +2,7 @@ const cors = require('cors');
 const express = require('express');
 const mongoose = require('mongoose');
 const applicationRoutes = require('./routes/applicationRoutes');
-const { authRouter, requireAuth, requireTrustedOrigin } = require('./auth');
+const { requireTrustedOrigin } = require('./auth');
 
 function createApp({ apiRouter = express.Router() } = {}) {
   const app = express();
@@ -33,8 +33,7 @@ function createApp({ apiRouter = express.Router() } = {}) {
     });
   });
 
-  app.use('/api/auth', authRouter);
-  app.use('/api/applications', requireAuth, requireTrustedOrigin, applicationRoutes);
+  app.use('/api/applications', requireTrustedOrigin, applicationRoutes);
   app.use('/api', apiRouter);
 
   app.use((request, response) => {
