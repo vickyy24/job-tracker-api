@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const { requireTrustedOrigin } = require('./auth');
+const { requireAuthenticatedUser, requireCsrfToken } = require('./auth/requireAuthenticatedUser');
 
 function createApp({ apiRouter = express.Router() } = {}) {
   const app = express();
@@ -35,7 +36,7 @@ function createApp({ apiRouter = express.Router() } = {}) {
   });
 
   app.use('/api/auth', authRoutes);
-  app.use('/api/applications', requireTrustedOrigin, applicationRoutes);
+  app.use('/api/applications', requireAuthenticatedUser, requireTrustedOrigin, requireCsrfToken, applicationRoutes);
   app.use('/api', apiRouter);
 
   app.use((request, response) => {

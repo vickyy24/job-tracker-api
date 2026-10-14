@@ -24,7 +24,7 @@ router.get('/', async (request, response) => {
     return response.status(400).json({ message: 'Invalid order value.' });
   }
 
-  const filter = {};
+  const filter = { userId: request.user.id };
   if (status) filter.status = status;
   if (search.trim()) {
     const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -48,19 +48,24 @@ router.get('/stats', async (request, response) => {
   const now = new Date();
   const firstMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const ownerFilter = { userId: request.user.id };
+  const chartRange = {
+    ...ownerFilter,
+    applicationDate: { $gte: firstMonth, $lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) },
+  };
   const [totalApplications, interviews, offers, rejections, applicationsToday, monthlyApplications, monthlyStatusTotals] = await Promise.all([
-    JobApplication.countDocuments(),
-    JobApplication.countDocuments({ status: 'Interview' }),
-    JobApplication.countDocuments({ status: 'Offer' }),
-    JobApplication.countDocuments({ status: 'Rejected' }),
-    JobApplication.countDocuments({ createdAt: { $gte: todayUtc, $lt: new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000) } }),
+    JobApplication.countDocuments(ownerFilter),
+    JobApplication.countDocuments({ ...ownerFilter, status: 'Interview' }),
+    JobApplication.countDocuments({ ...ownerFilter, status: 'Offer' }),
+    JobApplication.countDocuments({ ...ownerFilter, status: 'Rejected' }),
+    JobApplication.countDocuments({ ...ownerFilter, createdAt: { $gte: todayUtc, $lt: new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000) } }),
     JobApplication.aggregate([
-      { $match: { applicationDate: { $gte: firstMonth, $lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) } } },
+      { $match: chartRange },
       { $group: { _id: { year: { $year: '$applicationDate' }, month: { $month: '$applicationDate' } }, count: { $sum: 1 } } },
       { $sort: { '_id.year': 1, '_id.month': 1 } },
     ]),
     JobApplication.aggregate([
-      { $match: { applicationDate: { $gte: firstMonth, $lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) } } },
+      { $match: chartRange },
       { $group: { _id: { year: { $year: '$applicationDate' }, month: { $month: '$applicationDate' }, status: '$status' }, count: { $sum: 1 } } },
     ]),
   ]);
@@ -86,7 +91,7 @@ router.get('/:id', async (request, response) => {
     return response.status(400).json({ message: 'Invalid application ID.' });
   }
 
-  const application = await JobApplication.findById(request.params.id);
+  const application = await JobApplication.findOne({ _id: request.params.id, userId: request.user.id });
   if (!application) {
     return response.status(404).json({ message: 'Application not found.' });
   }
@@ -99,7 +104,7 @@ router.delete('/:id', async (request, response) => {
     return response.status(400).json({ message: 'Invalid application ID.' });
   }
 
-  const application = await JobApplication.findByIdAndDelete(request.params.id);
+  const application = await JobApplication.findOneAndDelete({ _id: request.params.id, userId: request.user.id });
   if (!application) {
     return response.status(404).json({ message: 'Application not found.' });
   }
@@ -123,7 +128,7 @@ router.patch('/:id', async (request, response) => {
     return response.status(400).json({ message: 'Provide at least one editable field.' });
   }
 
-  const application = await JobApplication.findByIdAndUpdate(request.params.id, updates, {
+  const application = await JobApplication.findOneAndUpdate({ _id: request.params.id, userId: request.user.id }, updates, {
     returnDocument: 'after',
     runValidators: true,
   });
@@ -139,7 +144,10 @@ router.post('/', async (request, response) => {
     return response.status(400).json({ message: 'Request body must be a JSON object.' });
   }
 
-  const application = new JobApplication(request.body);
+  const applicationValues = Object.fromEntries(
+    editableFields.filter((field) => request.body[field] !== undefined).map((field) => [field, request.body[field]]),
+  );
+  const application = new JobApplication({ ...applicationValues, userId: request.user.id });
   await application.save();
   response.status(201).json(application);
 });

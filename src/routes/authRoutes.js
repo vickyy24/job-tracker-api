@@ -1,31 +1,25 @@
-const { createHash, createHmac, randomBytes, timingSafeEqual } = require('node:crypto');
+const { createHash, randomBytes } = require('node:crypto');
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const AuthSession = require('../models/AuthSession');
 const User = require('../models/User');
 const { hashPassword, isValidEmail, normalizeEmail, validatePassword, verifyPassword } = require('../auth/credentials');
 const { requireTrustedOrigin } = require('../auth');
+const {
+  accessCookieName,
+  createCsrfToken,
+  readCookie,
+  refreshCookieName,
+  signAccessToken,
+  validCsrfToken,
+  verifyAccessToken,
+} = require('../auth/sessionTokens');
 
 const router = express.Router();
 const ACCESS_TTL_SECONDS = 15 * 60;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const JWT_ISSUER = 'job-tracker-api';
-const JWT_AUDIENCE = 'job-tracker-web';
 const isProduction = () => process.env.NODE_ENV === 'production';
-const accessCookieName = () => isProduction() ? '__Host-jobtrack_access' : 'jobtrack_access';
-const refreshCookieName = () => isProduction() ? '__Host-jobtrack_refresh' : 'jobtrack_refresh';
 
 router.use(requireTrustedOrigin);
-
-function jwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (typeof secret !== 'string' || Buffer.byteLength(secret, 'utf8') < 32) {
-    const error = new Error('Authentication is not configured.');
-    error.status = 503;
-    throw error;
-  }
-  return secret;
-}
 
 function cookieOptions(maxAge) {
   return {
@@ -44,59 +38,8 @@ function clearSessionCookies(response) {
   response.clearCookie(refreshCookieName(), options);
 }
 
-function readCookie(request, name) {
-  const prefix = `${name}=`;
-  const item = (request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix));
-  if (!item) return null;
-  try {
-    return decodeURIComponent(item.slice(prefix.length));
-  } catch {
-    return null;
-  }
-}
-
 function tokenHash(token) {
   return createHash('sha256').update(token).digest('base64url');
-}
-
-function createCsrfToken(sessionId) {
-  return createHmac('sha256', jwtSecret()).update(`job-tracker-csrf-v1:${sessionId}`).digest('base64url');
-}
-
-function validCsrfToken(request, sessionId) {
-  const supplied = request.get('x-csrf-token');
-  if (typeof supplied !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(supplied)) return false;
-  const expected = createCsrfToken(sessionId);
-  return timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
-}
-
-function signAccessToken(userId, sessionId) {
-  return jwt.sign(
-    { sid: String(sessionId) },
-    jwtSecret(),
-    {
-      algorithm: 'HS256',
-      audience: JWT_AUDIENCE,
-      issuer: JWT_ISSUER,
-      subject: String(userId),
-      expiresIn: ACCESS_TTL_SECONDS,
-    },
-  );
-}
-
-function verifyAccessToken(request) {
-  const token = readCookie(request, accessCookieName());
-  if (!token) return null;
-  const secret = jwtSecret();
-  try {
-    return jwt.verify(token, secret, {
-      algorithms: ['HS256'],
-      audience: JWT_AUDIENCE,
-      issuer: JWT_ISSUER,
-    });
-  } catch {
-    return null;
-  }
 }
 
 async function activeSessionFromRefreshCookie(request) {
@@ -118,7 +61,7 @@ async function createSession(user, response) {
     expiresAt,
   });
 
-  response.cookie(accessCookieName(), signAccessToken(user._id, session._id), cookieOptions(ACCESS_TTL_SECONDS * 1000));
+  response.cookie(accessCookieName(), signAccessToken(user._id, session._id, ACCESS_TTL_SECONDS), cookieOptions(ACCESS_TTL_SECONDS * 1000));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(REFRESH_TTL_MS));
   return {
     user: { id: String(user._id), email: user.email },
@@ -227,7 +170,7 @@ router.post('/refresh', async (request, response) => {
     return response.status(401).json({ message: 'Authentication required.' });
   }
 
-  response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id), cookieOptions(ACCESS_TTL_SECONDS * 1000));
+  response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id, ACCESS_TTL_SECONDS), cookieOptions(ACCESS_TTL_SECONDS * 1000));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(REFRESH_TTL_MS));
   return response.json({ user: { id: String(user._id), email: user.email }, csrfToken: createCsrfToken(rotatedSession._id) });
 });
