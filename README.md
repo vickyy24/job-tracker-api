@@ -64,7 +64,7 @@ Successful list responses have the shape `{ "data": [], "total": 0 }`. Invalid i
 
 ## Optional chart demo data
 
-To populate charts with five fictional sample applications dated May through September 2026, run:
+To populate charts with seven fictional sample applications dated May through September 2026, run:
 
 ```sh
 npm run seed:demo
@@ -72,7 +72,7 @@ npm run seed:demo
 
 The script is safe to run more than once: it skips sample company names already in the database. It dates each sample's `createdAt` with its application date, so demo records do not increase today's daily-goal count. The company names start with `Demo ·` and notes identify each entry as sample data. To remove them, delete records with company names starting with `Demo ·` in the app or your MongoDB client.
 
-The sample records contain company, role, salary, location, application date, status, and a note. Their months and statuses are: May — Applied; June — Interview; July — Rejected; August — Offer; September — Interview. This produces visible month-to-month activity and multiple status totals in the dashboard. The records are fictional and do not represent current job listings.
+The sample records contain company, role, salary, location, application date, status, and a note. They create monthly counts of 1 in May, 2 in June, 1 in July, 2 in August, and 1 in September 2026, with Applied, Interview, Offer, and Rejected statuses represented. This produces visible month-to-month changes and multiple status totals in the dashboard. The records are fictional and do not represent current job listings.
 
 ## Tests
 

@@ -22,6 +22,15 @@ const demoApplications = [
     notes: 'Sample record for the dashboard charts. Not a real job application.',
   },
   {
+    companyName: 'Demo · Riverstone Robotics',
+    jobTitle: 'Backend Developer',
+    salary: '₹7,00,000–₹9,00,000 per year',
+    location: 'Chennai, Tamil Nadu',
+    applicationDate: new Date('2026-06-24T00:00:00.000Z'),
+    status: 'Interview',
+    notes: 'Sample record for the dashboard charts. Not a real job application.',
+  },
+  {
     companyName: 'Demo · Orbit Systems',
     jobTitle: 'Software Engineer Intern',
     salary: '₹8,000 per month',
@@ -37,6 +46,15 @@ const demoApplications = [
     location: 'Bengaluru, Karnataka',
     applicationDate: new Date('2026-08-21T00:00:00.000Z'),
     status: 'Offer',
+    notes: 'Sample record for the dashboard charts. Not a real job application.',
+  },
+  {
+    companyName: 'Demo · Sunbeam Fintech',
+    jobTitle: 'QA Engineer',
+    salary: '₹6,00,000–₹8,00,000 per year',
+    location: 'Remote, India',
+    applicationDate: new Date('2026-08-07T00:00:00.000Z'),
+    status: 'Applied',
     notes: 'Sample record for the dashboard charts. Not a real job application.',
   },
   {
