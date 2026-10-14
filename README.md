@@ -9,17 +9,22 @@
 - `test/app.test.js` covers health, configured CORS, JSON parsing, unknown routes, and production error responses using Node's built-in test runner.
 - The project uses Node.js CommonJS and keeps its existing package setup.
 
-## Run locally
+## Configure MongoDB Atlas and Compass
 
 ```powershell
 npm install
 Copy-Item .env.example .env
-npm start
 ```
 
-Edit `.env` to set `MONGODB_URI` to a reachable local or hosted MongoDB database. The checked-in `.env.example` uses a local development URI and contains no credentials. `.env` and other `.env.*` files are ignored by Git; never commit database credentials. Startup validates the URI and waits for MongoDB before listening. Missing configuration, invalid URIs, and connection failures produce clear messages without printing the URI or credentials.
+Set `MONGODB_URI` in `job-tracker-api/.env` to the connection string from your Atlas cluster. Use the database name `jobtracker` in the URI, and keep the username/password only in this backend `.env` file. `.env` is ignored by Git. Never put this URI in the React app or commit it.
 
-The API listens on port `5000` by default; set `PORT` to override it. CORS allows `http://localhost:3000` by default; set `FRONTEND_ORIGIN` to the frontend's origin when it runs elsewhere. Application routes are added by later tickets.
+In MongoDB Compass, choose **Add new connection**, paste the same Atlas connection string, then connect. The `jobtracker` database and collections appear after the backend successfully saves the first application.
+
+Start the API from this folder with `npm start`. It connects to MongoDB before listening on port `5000`; missing or unreachable Atlas configuration produces an actionable startup error. The API does not fall back to a local MongoDB server. Set `FRONTEND_ORIGIN` when the frontend runs at a different origin.
+
+Start the React app separately from `job-tracker-app` with `npm start`. It calls the Express API and never connects to MongoDB directly.
+
+The API listens on port `5000` by default; set `PORT` to override it. CORS allows `http://localhost:3000` by default. Application routes are available under `/api/applications`.
 
 Run the middleware tests with:
 
@@ -30,6 +35,10 @@ npm test
 ## Current API endpoint
 
 - `GET /api/health` → `{ "status": "ok" }`
+- `GET /api/applications` lists records as `{ "data": [], "total": 0 }`; supports `search`, `status`, `sortBy`, and `order` query parameters.
+- `GET /api/applications/stats` returns totals for applications, interviews, offers, and rejections.
+- `GET /api/applications/:id` reads one application; `PATCH /api/applications/:id` updates supplied application fields.
+- `DELETE /api/applications/:id` deletes one application.
 - `POST /api/applications` creates a record with `companyName`, `jobTitle`, `applicationDate`, `status`, and optional `notes`.
 
-The create endpoint returns the saved application with HTTP 201. Invalid model fields return HTTP 400 with a `message`; unexpected errors return `{ "message": "Internal server error" }`. Unknown paths return `{ "message": "Route not found" }`.
+Search checks company and job title without case sensitivity. Sorting supports `applicationDate` or `companyName`, ascending or descending; the default is application date descending. Invalid query values return HTTP 400. The create endpoint returns the saved application with HTTP 201. Invalid model fields return HTTP 400 with a `message`; unexpected errors return `{ "message": "Internal server error" }`. Unknown paths return `{ "message": "Route not found" }`.

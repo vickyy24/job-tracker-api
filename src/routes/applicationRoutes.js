@@ -3,7 +3,7 @@ const JobApplication = require('../models/JobApplication');
 
 const router = express.Router();
 const statuses = ['Applied', 'Interview', 'Offer', 'Rejected'];
-const editableFields = ['companyName', 'jobTitle', 'applicationDate', 'status', 'notes'];
+const editableFields = ['companyName', 'jobTitle', 'salary', 'location', 'applicationDate', 'status', 'notes'];
 
 router.get('/', async (request, response) => {
   const search = request.query.search || '';
@@ -17,7 +17,7 @@ router.get('/', async (request, response) => {
   if (status && !statuses.includes(status)) {
     return response.status(400).json({ message: 'Invalid status.' });
   }
-  if (!['applicationDate', 'companyName'].includes(sortBy)) {
+  if (!['applicationDate', 'companyName', 'jobTitle', 'createdAt'].includes(sortBy)) {
     return response.status(400).json({ message: 'Invalid sortBy value.' });
   }
   if (!['asc', 'desc'].includes(order)) {
@@ -32,6 +32,7 @@ router.get('/', async (request, response) => {
     filter.$or = [
       { companyName: searchPattern },
       { jobTitle: searchPattern },
+      { notes: searchPattern },
     ];
   }
 
@@ -45,14 +46,30 @@ router.get('/', async (request, response) => {
 });
 
 router.get('/stats', async (request, response) => {
-  const [totalApplications, interviews, offers, rejections] = await Promise.all([
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const firstMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+  const [totalApplications, interviews, offers, rejections, applicationsToday, monthlyApplications] = await Promise.all([
     JobApplication.countDocuments(),
     JobApplication.countDocuments({ status: 'Interview' }),
     JobApplication.countDocuments({ status: 'Offer' }),
     JobApplication.countDocuments({ status: 'Rejected' }),
+    JobApplication.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
+    JobApplication.aggregate([
+      { $match: { createdAt: { $gte: firstMonth } } },
+      { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]),
   ]);
 
-  response.json({ totalApplications, interviews, offers, rejections });
+  const applicationsByMonth = monthlyApplications.map((item) => ({
+    year: item._id.year,
+    month: item._id.month,
+    count: item.count,
+  }));
+  response.json({ totalApplications, interviews, offers, rejections, applicationsToday, applicationsByMonth });
 });
 
 router.get('/:id', async (request, response) => {
@@ -98,7 +115,7 @@ router.patch('/:id', async (request, response) => {
   }
 
   const application = await JobApplication.findByIdAndUpdate(request.params.id, updates, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
   if (!application) {

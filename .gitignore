@@ -2,9 +2,9 @@
 
 # dependencies
 /node_modules
+/package-lock.json
 
 # Local environment secrets
 .env
 .env.*
 !.env.example
-.package-lock.json

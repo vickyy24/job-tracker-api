@@ -1,5 +1,6 @@
 const cors = require('cors');
 const express = require('express');
+const mongoose = require('mongoose');
 const applicationRoutes = require('./routes/applicationRoutes');
 
 function createApp({ apiRouter = express.Router() } = {}) {
@@ -10,7 +11,11 @@ function createApp({ apiRouter = express.Router() } = {}) {
   app.use(express.json());
 
   app.get('/api/health', (request, response) => {
-    response.status(200).json({ status: 'ok' });
+    const connected = mongoose.connection.readyState === 1;
+    response.status(connected ? 200 : 503).json({
+      status: connected ? 'ok' : 'unavailable',
+      database: connected ? 'connected' : 'disconnected',
+    });
   });
 
   app.use('/api/applications', applicationRoutes);
