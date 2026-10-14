@@ -56,7 +56,10 @@ async function hashPassword(password) {
 }
 
 async function verifyPassword(password, encodedHash) {
-  if (validatePassword(password) || typeof encodedHash !== 'string') return false;
+  // Sign-in must verify existing credentials without reapplying today's
+  // account-creation policy (older accounts may use a shorter password).
+  if (typeof password !== 'string' || password.length === 0 || password.length > 128
+    || typeof encodedHash !== 'string') return false;
 
   const parts = encodedHash.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;

@@ -321,7 +321,7 @@ router.post('/resend-verification', async (request, response) => {
 router.post('/login', async (request, response) => {
   if (!(await rateLimit(request, response, 'login', 10, 15 * 60 * 1000))) return;
   const credentials = credentialsFrom(request);
-  if (!credentials || validatePassword(credentials.password)) {
+  if (!credentials || credentials.password.length === 0 || credentials.password.length > 128) {
     return response.status(401).json({ message: 'Email or password is incorrect.' });
   }
 
