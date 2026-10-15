@@ -17,8 +17,8 @@ async function requireAuthenticatedUser(request, response, next) {
 
   if (!session) return response.status(401).json({ message: 'Authentication required.' });
 
-  const verifiedUser = await User.exists({ _id: session.userId, emailVerifiedAt: { $ne: null } });
-  if (!verifiedUser) return response.status(401).json({ message: 'Authentication required.' });
+  const user = await User.exists({ _id: session.userId });
+  if (!user) return response.status(401).json({ message: 'Authentication required.' });
 
   request.user = { id: String(session.userId), sessionId: String(session._id) };
   return next();

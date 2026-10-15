@@ -2,14 +2,15 @@ const bcrypt = require('bcryptjs');
 
 const BCRYPT_COST = 12;
 
-function normalizeEmail(email) {
-  return typeof email === 'string' ? email.trim().toLowerCase() : email;
+function normalizeUsername(username) {
+  return typeof username === 'string' ? username.trim().toLowerCase() : username;
 }
 
-function isValidEmail(email) {
-  return typeof email === 'string'
-    && email.length <= 254
-    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+function isValidUsername(username) {
+  return typeof username === 'string'
+    && username.length >= 3
+    && username.length <= 32
+    && /^[a-z0-9._-]+$/.test(username);
 }
 
 function validatePassword(password) {
@@ -49,8 +50,8 @@ async function verifyPassword(password, encodedHash) {
 
 module.exports = {
   hashPassword,
-  isValidEmail,
-  normalizeEmail,
+  isValidUsername,
+  normalizeUsername,
   validatePassword,
   verifyPassword,
 };

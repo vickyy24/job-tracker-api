@@ -1,46 +1,26 @@
 const mongoose = require('mongoose');
-const { isValidEmail, normalizeEmail } = require('../auth/credentials');
+const { isValidUsername, normalizeUsername } = require('../auth/credentials');
 
 const userSchema = new mongoose.Schema({
-  firstName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 80,
-  },
-  lastName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 80,
-  },
-  email: {
+  username: {
     type: String,
     required: true,
     trim: true,
     lowercase: true,
-    maxlength: 254,
+    minlength: 3,
+    maxlength: 32,
     unique: true,
     validate: {
-      validator: isValidEmail,
-      message: 'Enter a valid email address.',
+      validator: isValidUsername,
+      message: 'Use 3–32 letters, numbers, dots, underscores, or hyphens.',
     },
-    set: normalizeEmail,
+    set: normalizeUsername,
   },
   passwordHash: {
     type: String,
     required: true,
     select: false,
   },
-  emailVerifiedAt: { type: Date, default: null },
-  verificationCodeHash: { type: String, default: null, select: false },
-  verificationCodeExpiresAt: { type: Date, default: null, select: false },
-  verificationAttempts: { type: Number, default: 0, select: false },
-  verificationSentAt: { type: Date, default: null, select: false },
-  passwordResetCodeHash: { type: String, default: null, select: false },
-  passwordResetCodeExpiresAt: { type: Date, default: null, select: false },
-  passwordResetAttempts: { type: Number, default: 0, select: false },
-  passwordResetSentAt: { type: Date, default: null, select: false },
 }, {
   timestamps: true,
   versionKey: false,

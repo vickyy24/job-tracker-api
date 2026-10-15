@@ -15,11 +15,3 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
-      - key: GMAIL_USER
-        sync: false
-      - key: GMAIL_OAUTH_CLIENT_ID
-        sync: false
-      - key: GMAIL_OAUTH_CLIENT_SECRET
-        sync: false
-      - key: GMAIL_OAUTH_REFRESH_TOKEN
-        sync: false
