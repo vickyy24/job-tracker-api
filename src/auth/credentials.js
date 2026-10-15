@@ -7,10 +7,20 @@ function normalizeUsername(username) {
 }
 
 function isValidUsername(username) {
-  return typeof username === 'string'
-    && username.length >= 3
-    && username.length <= 32
-    && /^[a-z0-9._-]+$/.test(username);
+  if (typeof username !== 'string') return false;
+
+  const normalized = normalizeUsername(username);
+  if (normalized.length >= 3 && normalized.length <= 32 && /^[a-z0-9._-]+$/.test(normalized)) return true;
+
+  // Accept an email address as a login identifier as well as a short username.
+  if (normalized.length > 254 || normalized.length < 6) return false;
+  const [localPart, ...domainParts] = normalized.split('@');
+  if (!localPart || localPart.length > 64 || domainParts.length !== 1) return false;
+  const domain = domainParts[0];
+  if (!domain || domain.length > 253 || !domain.includes('.')) return false;
+  return /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)
+    && domain.split('.').every((label) => label.length > 0 && label.length <= 63
+      && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label));
 }
 
 function validatePassword(password) {

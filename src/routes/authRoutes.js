@@ -107,7 +107,7 @@ router.post('/register', async (request, response) => {
   const credentials = credentialsFrom(request);
   const confirmPassword = request.body?.confirmPassword;
   if (!credentials) {
-    return response.status(400).json({ message: 'Use a username of 3–32 letters, numbers, dots, underscores, or hyphens.' });
+    return response.status(400).json({ message: 'Enter a valid username or email address.' });
   }
   if (credentials.password !== confirmPassword) {
     return response.status(400).json({ message: 'Passwords do not match.' });

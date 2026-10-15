@@ -79,7 +79,7 @@ All application endpoints are under `/api/applications`.
 | `PATCH` | `/api/applications/:id` | Update supplied application fields |
 | `DELETE` | `/api/applications/:id` | Delete an application |
 
-Registration validates that the password and confirmation match, creates a bcrypt password hash, and signs the user in immediately. Usernames are case-insensitive and accept 3–32 letters, numbers, dots, underscores, or hyphens. Auth endpoints apply per-IP request limits stored in MongoDB. No email, OTP, or password-reset delivery is used.
+Registration validates that the password and confirmation match, creates a bcrypt password hash, and signs the user in immediately. The login identifier is case-insensitive and accepts either a username (3–32 letters, numbers, dots, underscores, or hyphens) or a valid email address (up to 254 characters). Auth endpoints apply per-IP request limits stored in MongoDB. No email, OTP, or password-reset delivery is used.
 
 Search matches company names and job titles without case sensitivity. List sorting accepts `applicationDate`, `createdAt`, `companyName`, or `jobTitle`, with `asc` or `desc` order. The default is application date descending. On the frontend dashboard, the status breakdown compares all applications with the active pipeline (excluding rejected applications); the monthly activity chart offers the last 6 or 12 calendar months.
 

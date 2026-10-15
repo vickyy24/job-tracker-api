@@ -8,11 +8,11 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
     minlength: 3,
-    maxlength: 32,
+    maxlength: 254,
     unique: true,
     validate: {
       validator: isValidUsername,
-      message: 'Use 3–32 letters, numbers, dots, underscores, or hyphens.',
+      message: 'Enter a valid username or email address.',
     },
     set: normalizeUsername,
   },
