@@ -71,17 +71,18 @@ async function createSession(user, response, rememberMe = true) {
   response.cookie(accessCookieName(), signAccessToken(user._id, session._id, ACCESS_TTL_SECONDS), cookieOptions(rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(rememberMe ? REFRESH_TTL_MS : undefined));
   return {
-    user: { id: String(user._id), username: user.username },
+    user: { id: String(user._id), email: user.username, username: user.username },
     csrfToken: createCsrfToken(session._id),
   };
 }
 
 function credentialsFrom(request) {
   if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) return null;
-  const username = normalizeUsername(request.body.username);
+  const rawEmail = request.body.email || request.body.username;
+  const email = normalizeUsername(rawEmail);
   const { password } = request.body;
-  if (!isValidUsername(username) || typeof password !== 'string') return null;
-  return { username, password };
+  if (!isValidEmail(email) || typeof password !== 'string') return null;
+  return { email, username: email, password };
 }
 
 function otpHash(purpose, email, code) {
@@ -488,17 +489,17 @@ router.post('/login', async (request, response) => {
   if (!(await rateLimit(request, response, 'login', 10, 15 * 60 * 1000))) return;
   const credentials = credentialsFrom(request);
   if (!credentials || credentials.password.length === 0 || credentials.password.length > 128) {
-    return response.status(401).json({ message: 'Username or password is incorrect.' });
+    return response.status(401).json({ message: 'Email or password is incorrect.' });
   }
 
-  const user = await User.findOne({ username: credentials.username }).select('+passwordHash');
+  const user = await User.findOne({ username: credentials.email }).select('+passwordHash');
   if (!user) {
     console.warn('[auth:login-failed]', { reason: 'account-not-found' });
-    return response.status(401).json({ message: 'Username or password is incorrect.' });
+    return response.status(401).json({ message: 'Email or password is incorrect.' });
   }
   if (!(await verifyPassword(credentials.password, user.passwordHash))) {
     console.warn('[auth:login-failed]', { reason: 'password-mismatch' });
-    return response.status(401).json({ message: 'Username or password is incorrect.' });
+    return response.status(401).json({ message: 'Email or password is incorrect.' });
   }
 
   try {
@@ -532,7 +533,7 @@ router.get('/session', async (request, response) => {
 
   const user = await User.findById(claims.sub).select('_id username');
   if (!user) return response.status(401).json({ message: 'Authentication required.' });
-  return response.json({ user: { id: String(user._id), username: user.username }, csrfToken: createCsrfToken(claims.sid) });
+  return response.json({ user: { id: String(user._id), email: user.username, username: user.username }, csrfToken: createCsrfToken(claims.sid) });
 });
 
 router.post('/refresh', async (request, response) => {
@@ -569,7 +570,7 @@ router.post('/refresh', async (request, response) => {
 
   response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id, ACCESS_TTL_SECONDS), cookieOptions(rotatedSession.rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(rotatedSession.rememberMe ? REFRESH_TTL_MS : undefined));
-  return response.json({ user: { id: String(user._id), username: user.username }, csrfToken: createCsrfToken(rotatedSession._id) });
+  return response.json({ user: { id: String(user._id), email: user.username, username: user.username }, csrfToken: createCsrfToken(rotatedSession._id) });
 });
 
 router.post('/logout', async (request, response) => {

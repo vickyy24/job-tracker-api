@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { isValidUsername, normalizeUsername } = require('../auth/credentials');
+const { isValidEmail, normalizeUsername } = require('../auth/credentials');
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -11,8 +11,8 @@ const userSchema = new mongoose.Schema({
     maxlength: 254,
     unique: true,
     validate: {
-      validator: isValidUsername,
-      message: 'Enter a valid username or email address.',
+      validator: isValidEmail,
+      message: 'Enter a valid email address.',
     },
     set: normalizeUsername,
   },

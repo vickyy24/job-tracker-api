@@ -21,10 +21,7 @@ function isValidEmail(email) {
 
 function isValidUsername(username) {
   if (typeof username !== 'string') return false;
-  const normalized = normalizeUsername(username);
-  // Accept either a short username or a valid email address as the identifier.
-  return (normalized.length >= 3 && normalized.length <= 32 && /^[a-z0-9._-]+$/.test(normalized))
-    || isValidEmail(normalized);
+  return isValidEmail(normalizeUsername(username));
 }
 
 function validatePassword(password) {

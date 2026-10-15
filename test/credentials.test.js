@@ -23,7 +23,7 @@ test('credentials: email validation', () => {
 
 test('credentials: username normalization and validation', () => {
   assert.equal(normalizeUsername('  User@Example.COM  '), 'user@example.com');
-  assert.equal(isValidUsername('john_doe'), true);
+  assert.equal(isValidUsername('john_doe'), false);
   assert.equal(isValidUsername('test@example.com'), true);
   assert.equal(isValidUsername('ab'), false, 'too short username');
 });
