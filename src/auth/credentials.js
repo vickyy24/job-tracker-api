@@ -6,13 +6,9 @@ function normalizeUsername(username) {
   return typeof username === 'string' ? username.trim().toLowerCase() : username;
 }
 
-function isValidUsername(username) {
-  if (typeof username !== 'string') return false;
-
-  const normalized = normalizeUsername(username);
-  if (normalized.length >= 3 && normalized.length <= 32 && /^[a-z0-9._-]+$/.test(normalized)) return true;
-
-  // Accept an email address as a login identifier as well as a short username.
+function isValidEmail(email) {
+  if (typeof email !== 'string') return false;
+  const normalized = normalizeUsername(email);
   if (normalized.length > 254 || normalized.length < 6) return false;
   const [localPart, ...domainParts] = normalized.split('@');
   if (!localPart || localPart.length > 64 || domainParts.length !== 1) return false;
@@ -21,6 +17,14 @@ function isValidUsername(username) {
   return /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)
     && domain.split('.').every((label) => label.length > 0 && label.length <= 63
       && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label));
+}
+
+function isValidUsername(username) {
+  if (typeof username !== 'string') return false;
+  const normalized = normalizeUsername(username);
+  // Accept either a short username or a valid email address as the identifier.
+  return (normalized.length >= 3 && normalized.length <= 32 && /^[a-z0-9._-]+$/.test(normalized))
+    || isValidEmail(normalized);
 }
 
 function validatePassword(password) {
@@ -60,6 +64,7 @@ async function verifyPassword(password, encodedHash) {
 
 module.exports = {
   hashPassword,
+  isValidEmail,
   isValidUsername,
   normalizeUsername,
   validatePassword,
