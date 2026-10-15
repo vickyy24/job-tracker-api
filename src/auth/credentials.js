@@ -1,15 +1,6 @@
-const { promisify } = require('node:util');
-const { scrypt: scryptCallback, timingSafeEqual } = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
 const BCRYPT_COST = 12;
-const LEGACY_SCRYPT_COST = 32768;
-const LEGACY_SCRYPT_BLOCK_SIZE = 8;
-const LEGACY_SCRYPT_PARALLELIZATION = 1;
-const LEGACY_KEY_LENGTH = 64;
-const LEGACY_SALT_LENGTH = 16;
-const LEGACY_MAX_MEMORY = 64 * 1024 * 1024;
-const scrypt = promisify(scryptCallback);
 
 function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : email;
@@ -53,27 +44,7 @@ async function verifyPassword(password, encodedHash) {
     return bcrypt.compare(password, encodedHash);
   }
 
-  // Verify old scrypt accounts during the transition; all new and reset
-  // passwords are written as bcrypt hashes.
-  const parts = encodedHash.split('$');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
-  const [, cost, blockSize, parallelization, encodedSalt, encodedKey] = parts;
-  if (Number(cost) !== LEGACY_SCRYPT_COST
-    || Number(blockSize) !== LEGACY_SCRYPT_BLOCK_SIZE
-    || Number(parallelization) !== LEGACY_SCRYPT_PARALLELIZATION
-    || !/^[A-Za-z0-9_-]{22}$/.test(encodedSalt)
-    || !/^[A-Za-z0-9_-]{86}$/.test(encodedKey)) return false;
-
-  const salt = Buffer.from(encodedSalt, 'base64url');
-  const expectedKey = Buffer.from(encodedKey, 'base64url');
-  if (salt.length !== LEGACY_SALT_LENGTH || expectedKey.length !== LEGACY_KEY_LENGTH) return false;
-  const actualKey = await scrypt(password, salt, LEGACY_KEY_LENGTH, {
-    N: LEGACY_SCRYPT_COST,
-    r: LEGACY_SCRYPT_BLOCK_SIZE,
-    p: LEGACY_SCRYPT_PARALLELIZATION,
-    maxmem: LEGACY_MAX_MEMORY,
-  });
-  return timingSafeEqual(actualKey, expectedKey);
+  return false;
 }
 
 module.exports = {
