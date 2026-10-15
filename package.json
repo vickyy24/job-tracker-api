@@ -12,6 +12,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "dev": "node --env-file-if-exists=.env --watch index.js",
+    "reset:database": "node --env-file-if-exists=.env scripts/reset-database.js",
     "test": "node --test --test-isolation=none"
   },
   "dependencies": {
