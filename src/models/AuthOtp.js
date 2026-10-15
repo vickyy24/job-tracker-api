@@ -23,6 +23,14 @@ const authOtpSchema = new mongoose.Schema({
     default: null,
     select: false,
   },
+  pendingFirstName: {
+    type: String,
+    default: '',
+  },
+  pendingLastName: {
+    type: String,
+    default: '',
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

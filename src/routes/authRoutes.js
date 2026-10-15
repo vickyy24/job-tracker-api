@@ -71,7 +71,13 @@ async function createSession(user, response, rememberMe = true) {
   response.cookie(accessCookieName(), signAccessToken(user._id, session._id, ACCESS_TTL_SECONDS), cookieOptions(rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(rememberMe ? REFRESH_TTL_MS : undefined));
   return {
-    user: { id: String(user._id), email: user.username, username: user.username },
+    user: {
+      id: String(user._id),
+      email: user.username,
+      username: user.username,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+    },
     csrfToken: createCsrfToken(session._id),
   };
 }
@@ -150,6 +156,9 @@ router.post('/register', async (request, response) => {
     return response.status(429).json({ message: 'Please wait a minute before requesting another code.' });
   }
 
+  const firstName = typeof request.body?.firstName === 'string' ? request.body.firstName.trim().slice(0, 80) : '';
+  const lastName = typeof request.body?.lastName === 'string' ? request.body.lastName.trim().slice(0, 80) : '';
+
   try {
     const passwordHash = await hashPassword(credentials.password);
     const code = createOtp();
@@ -161,6 +170,8 @@ router.post('/register', async (request, response) => {
         $set: {
           codeHash: otpHash('email_verification', email, code),
           pendingPasswordHash: passwordHash,
+          pendingFirstName: firstName,
+          pendingLastName: lastName,
           attempts: 0,
           sentAt: now,
           expiresAt: new Date(now.getTime() + OTP_TTL_MS),
@@ -216,7 +227,12 @@ router.post('/verify-email', async (request, response) => {
 
   let user;
   try {
-    user = await User.create({ username: email, passwordHash: otpDoc.pendingPasswordHash });
+    user = await User.create({
+      username: email,
+      firstName: otpDoc.pendingFirstName || '',
+      lastName: otpDoc.pendingLastName || '',
+      passwordHash: otpDoc.pendingPasswordHash,
+    });
   } catch (error) {
     await AuthOtp.deleteOne({ _id: otpDoc._id });
     if (error.code === 11000) return response.status(409).json({ message: 'An account with this email already exists.' });
@@ -531,9 +547,18 @@ router.get('/session', async (request, response) => {
   const session = await AuthSession.exists({ _id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { $gt: new Date() } });
   if (!session) return response.status(401).json({ message: 'Authentication required.' });
 
-  const user = await User.findById(claims.sub).select('_id username');
+  const user = await User.findById(claims.sub).select('_id username firstName lastName');
   if (!user) return response.status(401).json({ message: 'Authentication required.' });
-  return response.json({ user: { id: String(user._id), email: user.username, username: user.username }, csrfToken: createCsrfToken(claims.sid) });
+  return response.json({
+    user: {
+      id: String(user._id),
+      email: user.username,
+      username: user.username,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+    },
+    csrfToken: createCsrfToken(claims.sid),
+  });
 });
 
 router.post('/refresh', async (request, response) => {
@@ -561,7 +586,7 @@ router.post('/refresh', async (request, response) => {
     return response.status(401).json({ message: 'Authentication required.' });
   }
 
-  const user = await User.findById(rotatedSession.userId).select('_id username');
+  const user = await User.findById(rotatedSession.userId).select('_id username firstName lastName');
   if (!user) {
     await AuthSession.updateOne({ _id: rotatedSession._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
     clearSessionCookies(response);
@@ -570,7 +595,16 @@ router.post('/refresh', async (request, response) => {
 
   response.cookie(accessCookieName(), signAccessToken(user._id, rotatedSession._id, ACCESS_TTL_SECONDS), cookieOptions(rotatedSession.rememberMe ? ACCESS_TTL_SECONDS * 1000 : undefined));
   response.cookie(refreshCookieName(), refreshToken, cookieOptions(rotatedSession.rememberMe ? REFRESH_TTL_MS : undefined));
-  return response.json({ user: { id: String(user._id), email: user.username, username: user.username }, csrfToken: createCsrfToken(rotatedSession._id) });
+  return response.json({
+    user: {
+      id: String(user._id),
+      email: user.username,
+      username: user.username,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+    },
+    csrfToken: createCsrfToken(rotatedSession._id),
+  });
 });
 
 router.post('/logout', async (request, response) => {

@@ -2,6 +2,18 @@ const mongoose = require('mongoose');
 const { isValidEmail, normalizeUsername } = require('../auth/credentials');
 
 const userSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    trim: true,
+    maxlength: 80,
+    default: '',
+  },
+  lastName: {
+    type: String,
+    trim: true,
+    maxlength: 80,
+    default: '',
+  },
   username: {
     type: String,
     required: true,
