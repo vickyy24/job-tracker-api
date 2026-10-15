@@ -16,8 +16,13 @@ async function connectDatabase() {
       if (legacyEmailIndex) await User.collection.dropIndex(legacyEmailIndex.name);
     }
     await User.init();
-  } catch {
-    throw new Error('Unable to initialize MongoDB Atlas. Check the connection string, Atlas IP access list, database user, and user indexes.');
+  } catch (error) {
+    // Keep the underlying Atlas/Mongoose cause visible so local startup failures
+    // can be diagnosed instead of collapsing DNS, auth, network, and index
+    // errors into the same message. Strip credentials if a driver error happens
+    // to include a MongoDB URI.
+    const cause = error?.message?.replace(/(mongodb(?:\+srv)?:\/\/)[^\s@]+@/gi, '$1[REDACTED]@');
+    throw new Error(`Unable to initialize MongoDB Atlas: ${cause || 'unknown MongoDB error'}`, { cause: error });
   }
 }
 
