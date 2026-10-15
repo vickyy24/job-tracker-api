@@ -17,7 +17,7 @@ From this folder:
 npm install
 ```
 
-Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string, replace `JWT_SECRET` with a cryptographically random value of at least 32 bytes, and set `GMAIL_USER` plus `GMAIL_APP_PASSWORD`. The API sends email through Gmail SMTP on port 587. Keep all credentials in the API environment; the frontend does not connect directly to MongoDB or receive mail credentials or the JWT signing key. The `.env` file is ignored by Git.
+Copy `.env.example` to `.env`, then set `MONGODB_URI` to your database connection string, replace `JWT_SECRET` with a cryptographically random value of at least 32 bytes, and configure Gmail API OAuth credentials. The API sends email through Gmail's HTTPS API, so it works on Render Free, which blocks outbound SMTP ports. Keep all credentials in the API environment; the frontend does not connect directly to MongoDB or receive mail credentials or the JWT signing key. The `.env` file is ignored by Git.
 
 This source revision requires a verified JWT session for all application data endpoints, scopes application operations to the authenticated account, and requires a session-bound CSRF header for writes. A deployed older revision may still expose unowned records; verify the deployed API version before treating production data as private. Existing records without an owner stay hidden from accounts and must be deleted manually before enabling private accounts; there is no automatic migration or first-account claim.
 
@@ -27,7 +27,9 @@ PORT=5000
 FRONTEND_ORIGIN=http://localhost:3000
 JWT_SECRET=generate-a-random-secret-at-least-32-bytes-long
 GMAIL_USER=your.full.address@gmail.com
-GMAIL_APP_PASSWORD=your-16-character-app-password
+GMAIL_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GMAIL_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
+GMAIL_OAUTH_REFRESH_TOKEN=your-google-oauth-refresh-token
 ```
 
 Start the server:
@@ -45,8 +47,8 @@ The included `render.yaml` defines a Node web service. Create a new Render Bluep
 - `MONGODB_URI`: MongoDB Atlas connection string. Restrict the Atlas network access list to Render's outbound IP ranges where your Atlas tier supports it.
 - `FRONTEND_ORIGIN`: the exact production Vercel origin, for example `https://job-tracker-app.vercel.app` (no trailing slash).
 - `JWT_SECRET`: a cryptographically random secret of at least 32 bytes. Keep it in Render's secret environment settings; never commit it or expose it to the frontend.
-- `GMAIL_USER`: the full Gmail address that sends verification messages.
-- `GMAIL_APP_PASSWORD`: the Google App Password for that account. Keep it in Render's secret environment settings; do not use your normal Google password.
+- `GMAIL_USER`: the full Gmail address that sends verification and password-reset messages.
+- `GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET`, and `GMAIL_OAUTH_REFRESH_TOKEN`: OAuth credentials authorized for the Gmail `gmail.send` scope. Create them in Google Cloud Console with the Gmail API enabled and offline access, then store them only in Render's secret environment settings. Do not use a Gmail password or App Password here.
 - `NODE_ENV`: `production` (set by the Blueprint).
 
 Keep all values in Render's secret environment settings. Never commit `.env` or copy the MongoDB URI into Vercel. Render's free instance may sleep when idle; choose a paid instance if always-on response time is required.
