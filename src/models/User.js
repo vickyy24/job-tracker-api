@@ -14,6 +14,16 @@ const userSchema = new mongoose.Schema({
     maxlength: 80,
     default: '',
   },
+  gender: {
+    type: String,
+    enum: ['prefer-not-to-say', 'woman', 'man', 'non-binary', 'other'],
+    default: 'prefer-not-to-say',
+  },
+  avatar: {
+    type: String,
+    maxlength: 28000,
+    default: '',
+  },
   username: {
     type: String,
     required: true,

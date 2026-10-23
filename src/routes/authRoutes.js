@@ -77,6 +77,8 @@ async function createSession(user, response, rememberMe = true) {
       username: user.username,
       firstName: user.firstName || '',
       lastName: user.lastName || '',
+      gender: user.gender || 'prefer-not-to-say',
+      avatar: user.avatar || '',
     },
     csrfToken: createCsrfToken(session._id),
   };
@@ -550,20 +552,32 @@ router.patch('/profile', async (request, response) => {
 
   const firstName = typeof request.body?.firstName === 'string' ? request.body.firstName.trim() : '';
   const lastName = typeof request.body?.lastName === 'string' ? request.body.lastName.trim() : '';
+  const gender = typeof request.body?.gender === 'string' ? request.body.gender : 'prefer-not-to-say';
+  const avatar = typeof request.body?.avatar === 'string' ? request.body.avatar : '';
   if (!firstName || firstName.length > 80 || lastName.length > 80) {
     return response.status(400).json({ message: 'Enter a first name and keep each name to 80 characters or fewer.' });
   }
+  if (!['prefer-not-to-say', 'woman', 'man', 'non-binary', 'other'].includes(gender)) {
+    return response.status(400).json({ message: 'Choose a valid gender option.' });
+  }
+  if (avatar.length > 28000 || (avatar && !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(avatar))) {
+    return response.status(400).json({ message: 'Choose a smaller JPEG profile image.' });
+  }
 
   const user = await User.findByIdAndUpdate(claims.sub, {
-    $set: { firstName, lastName },
-  }, { new: true, runValidators: true }).select('_id firstName lastName');
+    $set: { firstName, lastName, gender, avatar },
+  }, { new: true, runValidators: true }).select('_id firstName lastName gender avatar username');
   if (!user) return response.status(401).json({ message: 'Authentication required.' });
 
   return response.json({
     user: {
       id: String(user._id),
+      email: user.username,
+      username: user.username,
       firstName: user.firstName || '',
       lastName: user.lastName || '',
+      gender: user.gender || 'prefer-not-to-say',
+      avatar: user.avatar || '',
     },
   });
 });
@@ -577,7 +591,7 @@ router.get('/session', async (request, response) => {
   const session = await AuthSession.exists({ _id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { $gt: new Date() } });
   if (!session) return response.status(401).json({ message: 'Authentication required.' });
 
-  const user = await User.findById(claims.sub).select('_id username firstName lastName');
+  const user = await User.findById(claims.sub).select('_id username firstName lastName gender avatar');
   if (!user) return response.status(401).json({ message: 'Authentication required.' });
   return response.json({
     user: {
@@ -586,6 +600,8 @@ router.get('/session', async (request, response) => {
       username: user.username,
       firstName: user.firstName || '',
       lastName: user.lastName || '',
+      gender: user.gender || 'prefer-not-to-say',
+      avatar: user.avatar || '',
     },
     csrfToken: createCsrfToken(claims.sid),
   });
@@ -616,7 +632,7 @@ router.post('/refresh', async (request, response) => {
     return response.status(401).json({ message: 'Authentication required.' });
   }
 
-  const user = await User.findById(rotatedSession.userId).select('_id username firstName lastName');
+  const user = await User.findById(rotatedSession.userId).select('_id username firstName lastName gender avatar');
   if (!user) {
     await AuthSession.updateOne({ _id: rotatedSession._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
     clearSessionCookies(response);
@@ -632,6 +648,8 @@ router.post('/refresh', async (request, response) => {
       username: user.username,
       firstName: user.firstName || '',
       lastName: user.lastName || '',
+      gender: user.gender || 'prefer-not-to-say',
+      avatar: user.avatar || '',
     },
     csrfToken: createCsrfToken(rotatedSession._id),
   });
