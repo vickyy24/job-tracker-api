@@ -538,6 +538,36 @@ router.get('/csrf', async (request, response) => {
   return response.json({ csrfToken: createCsrfToken(session._id) });
 });
 
+router.patch('/profile', async (request, response) => {
+  const claims = verifyAccessToken(request);
+  if (!claims || typeof claims.sid !== 'string' || typeof claims.sub !== 'string') {
+    return response.status(401).json({ message: 'Authentication required.' });
+  }
+
+  const session = await AuthSession.exists({ _id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { $gt: new Date() } });
+  if (!session) return response.status(401).json({ message: 'Authentication required.' });
+  if (!validCsrfToken(request, claims.sid)) return response.status(403).json({ message: 'Request verification failed.' });
+
+  const firstName = typeof request.body?.firstName === 'string' ? request.body.firstName.trim() : '';
+  const lastName = typeof request.body?.lastName === 'string' ? request.body.lastName.trim() : '';
+  if (!firstName || firstName.length > 80 || lastName.length > 80) {
+    return response.status(400).json({ message: 'Enter a first name and keep each name to 80 characters or fewer.' });
+  }
+
+  const user = await User.findByIdAndUpdate(claims.sub, {
+    $set: { firstName, lastName },
+  }, { new: true, runValidators: true }).select('_id firstName lastName');
+  if (!user) return response.status(401).json({ message: 'Authentication required.' });
+
+  return response.json({
+    user: {
+      id: String(user._id),
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+    },
+  });
+});
+
 router.get('/session', async (request, response) => {
   const claims = verifyAccessToken(request);
   if (!claims || typeof claims.sid !== 'string' || typeof claims.sub !== 'string') {
